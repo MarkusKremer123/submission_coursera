@@ -1,0 +1,234 @@
+Since mode sharing seems to not work...
+1.date is missing
+2.
+SELECT
+  item_id,
+  test_a as test_assignment,
+  'item_test_1' as test_number,
+  DATE(NOW()) as placeholder
+FROM dsv1069.final_assignments_qa
+
+UNION
+
+SELECT
+  item_id,
+  test_b as test_assignment,
+  'item_test_2' as test_number,
+  DATE(NOW()) as placeholder
+FROM dsv1069.final_assignments_qa
+
+UNION
+
+SELECT
+  item_id,
+  test_c as test_assignment,
+  'item_test_3' as test_number,
+  DATE(NOW()) as placeholder
+FROM dsv1069.final_assignments_qa
+
+UNION
+
+SELECT
+  item_id,
+  test_d as test_assignment,
+  'item_test_4' as test_number,
+  DATE(NOW()) as placeholder
+FROM dsv1069.final_assignments_qa
+
+UNION
+
+SELECT
+  item_id,
+  test_e as test_assignment,
+  'item_test_5' as test_number,
+  DATE(NOW()) as placeholder
+FROM dsv1069.final_assignments_qa
+
+UNION
+
+SELECT
+  item_id,
+  test_f as test_assignment,
+  'item_test_6' as test_number,
+  DATE(NOW()) as placeholder
+FROM dsv1069.final_assignments_qa
+ORDER BY
+  test_number
+
+
+
+3.
+
+-- Use this table to 
+-- compute order_binary for the 30 day window after the test_start_date
+-- for the test named item_test_2
+
+SELECT 
+  test_assignment,
+  COUNT(DISTINCT item_id) as amount_of_items,
+  AVG(amount_of_orders)    as average_orders,
+  AVG(order_binary)        as average_order_binary
+FROM
+  (
+  SELECT
+    test.item_id                    as item_id,
+    test_assignment                 as test_assignment,
+    COUNT(DISTINCT order_items.order_id)   as amount_of_orders,
+    MAX(CASE WHEN order_items.order_id ISNULL THEN 0 ELSE 1 END) as order_binary
+  FROM
+    (
+    SELECT 
+      CAST(item_id AS INT) AS item_id,
+      test_assignment,
+      test_start_date
+    FROM 
+      dsv1069.final_assignments
+    WHERE
+      test_number='item_test_2'
+    ) test
+    LEFT JOIN
+    (
+    SELECT
+      line_item_id as order_id,
+      created_at as order_time,
+      item_id
+    FROM
+      dsv1069.orders
+    )  order_items
+  ON 
+    test.item_id=order_items.item_id
+  AND
+    test.test_start_date<=order_items.order_time
+  AND
+    DATE(order_items.order_time)-DATE(test.test_start_date)<30
+  GROUP BY
+    test.item_id,
+    test_assignment
+  ORDER BY
+    test.item_id
+) as item_level
+GROUP BY test_assignment
+
+
+
+4.
+
+
+-- Use this table to 
+-- compute view_binary for the 30 day window after the test_start_date
+-- for the test named item_test_2
+
+SELECT 
+  test_assignment,
+  COUNT(DISTINCT item_id) as amount_of_items,
+  AVG(amount_of_views)    as average_views,
+  AVG(view_binary)        as average_binary_views
+FROM
+  (
+  SELECT
+    test.item_id                    as item_id,
+    test_assignment                 as test_assignment,
+    COUNT(DISTINCT views.view_id)   as amount_of_views,
+    MAX(CASE WHEN views.view_id ISNULL THEN 0 ELSE 1 END) as view_binary
+  FROM
+    (
+    SELECT 
+      CAST(item_id AS INT) AS item_id,
+      test_assignment,
+      test_start_date
+    FROM 
+      dsv1069.final_assignments
+    WHERE
+      test_number='item_test_2'
+    ) test
+    LEFT JOIN
+    (
+    SELECT
+      event_id as view_id,
+      event_time as view_time,
+      CAST(parameter_value AS INT) as item_id
+    FROM
+      dsv1069.events
+    WHERE
+      event_name='view_item'
+    AND
+      parameter_name='item_id'
+    ) views
+  ON 
+    test.item_id=views.item_id
+  AND
+    test.test_start_date<=views.view_time
+  AND
+    DATE(views.view_time)-DATE(test.test_start_date)<30
+  GROUP BY
+    test.item_id,
+    test_assignment
+  ORDER BY
+    test.item_id
+  ) as item_level
+GROUP BY test_assignment
+
+
+
+5.
+
+
+
+/*
+ANSWERRRRR:
+LIFT RANGE: 
+-1.9% – 6.2%
+(2.2%)
+p-value 0.29
+SUucess rate baseline: 78% – 83%
+Sucess rate experiment: 80% – 84%
+*/
+SELECT 
+  test_assignment,
+  COUNT(DISTINCT item_id) as amount_of_items,
+  SUM(amount_of_views)    as average_views,
+  SUM(view_binary)        as average_binary_views
+FROM
+  (
+  SELECT
+    test.item_id                    as item_id,
+    test_assignment                 as test_assignment,
+    COUNT(DISTINCT views.view_id)   as amount_of_views,
+    MAX(CASE WHEN views.view_id ISNULL THEN 0 ELSE 1 END) as view_binary
+  FROM
+    (
+    SELECT 
+      CAST(item_id AS INT) AS item_id,
+      test_assignment,
+      test_start_date
+    FROM 
+      dsv1069.final_assignments
+    WHERE
+      test_number='item_test_2'
+    ) test
+    LEFT JOIN
+    (
+    SELECT
+      event_id as view_id,
+      event_time as view_time,
+      CAST(parameter_value AS INT) as item_id
+    FROM
+      dsv1069.events
+    WHERE
+      event_name='view_item'
+    AND
+      parameter_name='item_id'
+    ) views
+  ON 
+    test.item_id=views.item_id
+  AND
+    test.test_start_date<=views.view_time
+  AND
+    DATE(views.view_time)-DATE(test.test_start_date)<30
+  GROUP BY
+    test.item_id,
+    test_assignment
+  ORDER BY
+    test.item_id
+  ) as item_level
+GROUP BY test_assignment
